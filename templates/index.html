@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>聽力圖小工具</title>
+<style>
+  body { font-family: system-ui, "PingFang TC", "Microsoft JhengHei", sans-serif; font-size: 1rem; line-height: 1.6; max-width: 60rem; margin: 0 auto; padding: 1rem; color: #222; }
+  h1 { font-size: 1.6rem; }
+  h2 { font-size: 1.25rem; margin-bottom: .25rem; }
+  table { border-collapse: collapse; margin-bottom: 1rem; }
+  th, td { padding: .25rem .4rem; text-align: center; }
+  input { width: 4rem; font-size: 1rem; padding: .25rem; text-align: center; }
+  button { font-size: 1rem; padding: .5rem 1.5rem; }
+  .error { color: #b00020; }
+  .results { display: flex; flex-wrap: wrap; gap: 2rem; }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 0 1rem; margin: 0; }
+  dd { margin: 0; font-weight: 600; }
+  svg { max-width: 100%; height: auto; }
+  .right { color: #c00; }
+  .left { color: #06c; }
+  .grid { stroke: #ccc; stroke-width: 1; }
+  .axis { font-size: 12px; fill: #444; }
+  .line { fill: none; stroke: currentColor; stroke-width: 2; }
+  .mark { stroke: currentColor; fill: currentColor; font-size: 20px; text-anchor: middle; dominant-baseline: central; }
+  circle.mark { fill: white; stroke-width: 2; }
+  text.mark { stroke: none; font-weight: 700; }
+</style>
+</head>
+<body>
+<h1>聽力圖小工具</h1>
+<p>輸入各頻率的聽閾（dB HL，5 的倍數，-10 到 120）。沒測的頻率留白。本頁不儲存任何資料。</p>
+
+{% if errors %}
+<ul class="error">
+  {% for message in errors %}<li>{{ message }}</li>{% endfor %}
+</ul>
+{% endif %}
+
+<form method="post">
+  {% for ear, ear_name in ears.items() %}
+  <h2 class="{{ ear }}">{{ ear_name }}</h2>
+  <table>
+    <tr>
+      <th></th>
+      {% for freq in chart.FREQUENCIES %}<th>{{ freq }} Hz</th>{% endfor %}
+    </tr>
+    {% for conduction, (conduction_name, frequencies) in conductions.items() %}
+    <tr>
+      <th>{{ conduction_name }}</th>
+      {% for freq in chart.FREQUENCIES %}
+      <td>
+        {% if freq in frequencies %}
+        {% set name = ear ~ "_" ~ conduction ~ "_" ~ freq %}
+        <input name="{{ name }}" value="{{ form.get(name, '') }}" inputmode="numeric" aria-label="{{ ear_name }}{{ conduction_name }} {{ freq }} Hz">
+        {% endif %}
+      </td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </table>
+  {% endfor %}
+  <button type="submit">計算</button>
+</form>
+
+{% if results %}
+<div class="results">
+  {% for ear, result in results.items() %}
+  <section id="result-{{ ear }}">
+    <h2 class="{{ ear }}">{{ ears[ear] }}</h2>
+    {% if result.message %}
+    <p>{{ result.message }}</p>
+    {% else %}
+    <dl>
+      <dt>四頻平均</dt><dd>{{ result.pta }} dB HL</dd>
+      <dt>程度</dt><dd>{{ result.degree }}</dd>
+      <dt>類型</dt><dd>{{ result.type }}</dd>
+    </dl>
+    {% endif %}
+  </section>
+  {% endfor %}
+</div>
+
+<svg viewBox="0 0 {{ chart.WIDTH }} {{ chart.HEIGHT }}" width="{{ chart.WIDTH }}" role="img" aria-label="聽力圖">
+  {% for freq in chart.FREQUENCIES %}
+  <line class="grid" x1="{{ chart.x(freq) }}" x2="{{ chart.x(freq) }}" y1="{{ chart.y(chart.DB_MIN) }}" y2="{{ chart.y(chart.DB_MAX) }}"/>
+  <text class="axis" x="{{ chart.x(freq) }}" y="{{ chart.TOP - 12 }}" text-anchor="middle">{{ freq }}</text>
+  {% endfor %}
+  {% for db in range(chart.DB_MIN, chart.DB_MAX + 1, 10) %}
+  <line class="grid" x1="{{ chart.x(250) }}" x2="{{ chart.x(8000) }}" y1="{{ chart.y(db) }}" y2="{{ chart.y(db) }}"/>
+  <text class="axis" x="{{ chart.LEFT - 10 }}" y="{{ chart.y(db) + 4 }}" text-anchor="end">{{ db }}</text>
+  {% endfor %}
+  <text class="axis" x="{{ chart.x(8000) }}" y="{{ chart.HEIGHT - 8 }}" text-anchor="end">頻率 (Hz) ／ 聽閾 (dB HL)</text>
+
+  {% for ear, by_conduction in marks.items() %}
+  <g class="{{ ear }}">
+    {% if by_conduction.ac %}
+    <polyline class="line {{ ear }}" points="{% for px, py in by_conduction.ac %}{{ px }},{{ py }} {% endfor %}"/>
+    {% endif %}
+    {% for px, py in by_conduction.ac %}
+    {% if ear == "right" %}
+    <circle class="mark ac right" cx="{{ px }}" cy="{{ py }}" r="7"/>
+    {% else %}
+    <text class="mark ac left" x="{{ px }}" y="{{ py }}">✕</text>
+    {% endif %}
+    {% endfor %}
+    {% for px, py in by_conduction.bc %}
+    {% if ear == "right" %}
+    <text class="mark bc right" x="{{ px - 12 }}" y="{{ py }}">&lt;</text>
+    {% else %}
+    <text class="mark bc left" x="{{ px + 12 }}" y="{{ py }}">&gt;</text>
+    {% endif %}
+    {% endfor %}
+  </g>
+  {% endfor %}
+</svg>
+{% endif %}
+</body>
+</html>
