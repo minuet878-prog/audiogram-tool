@@ -15,20 +15,21 @@ CONDUCTIONS = {
 
 
 def parse(form):
-    """Return ({ear: {conduction: {freq: dB}}}, [error messages])."""
-    data, errors = {}, []
+    """Return ({ear: {conduction: {freq: dB}}}, {field name: error message})."""
+    data, errors = {}, {}
     for ear, ear_name in EARS.items():
         data[ear] = {}
         for conduction, (conduction_name, frequencies) in CONDUCTIONS.items():
             values = data[ear][conduction] = {}
             for freq in frequencies:
-                raw = form.get(f"{ear}_{conduction}_{freq}", "").strip()
+                name = f"{ear}_{conduction}_{freq}"
+                raw = form.get(name, "").strip()
                 if not raw:
                     continue
                 # int() alone also accepts "1_0" and full-width digits
                 value = int(raw) if re.fullmatch(r"-?[0-9]{1,3}", raw) else None
                 if value is None or value % 5 or not chart.DB_MIN <= value <= chart.DB_MAX:
-                    errors.append(
+                    errors[name] = (
                         f"{ear_name}{conduction_name} {freq} Hz：請輸入 "
                         f"{chart.DB_MIN} 到 {chart.DB_MAX} 之間、5 的倍數"
                     )
